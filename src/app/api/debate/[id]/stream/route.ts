@@ -37,7 +37,7 @@ export async function GET(
       try {
         for (let round = 1; round <= rounds; round++) {
           const isFirst = round === 1;
-          const isLast = round === debate.rounds;
+          const isLast = round === rounds;
           const phases = isFirst
             ? ["opening"]
             : isLast
