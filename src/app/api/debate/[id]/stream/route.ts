@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { getPersona } from "@/lib/personas";
 
-const client = new Anthropic();
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 function encode(event: string, data: object): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -142,27 +142,27 @@ Give your ${phase} argument. Be concise and in-character.`;
 
   let fullText = "";
 
-  const stream = await client.messages.stream({
-    model: "claude-sonnet-4-20250514",
+  const stream = await client.chat.completions.create({
+    model: "gpt-4o-mini",
     max_tokens: 400,
-    system: persona.systemPrompt,
-    messages: [{ role: "user", content: userPrompt }],
+    stream: true,
+    messages: [
+      { role: "system", content: persona.systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
   });
 
-  for await (const event of stream) {
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
-      const chunk = event.delta.text;
-      fullText += chunk;
+  for await (const chunk of stream) {
+    const text = chunk.choices[0]?.delta?.content;
+    if (text) {
+      fullText += text;
       controller.enqueue(
         new TextEncoder().encode(
           encode("message", {
             persona: side,
             round,
             phase,
-            content: chunk,
+            content: text,
             done: false,
           })
         )
