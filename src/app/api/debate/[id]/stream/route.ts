@@ -83,11 +83,12 @@ export async function GET(
             })
           )
         );
-      } catch (e) {
-        console.error("Stream error:", e);
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        console.error("Stream error:", errMsg, e);
         controller.enqueue(
           new TextEncoder().encode(
-            encode("error", { message: "Stream error" })
+            encode("error", { message: errMsg })
           )
         );
       } finally {
