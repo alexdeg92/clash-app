@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { getPersona } from "@/lib/personas";
-import { getDebateStore } from "../../start/route";
 
 const client = new Anthropic();
 
@@ -10,25 +9,33 @@ function encode(event: string, data: object): string {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const debate = getDebateStore().get(id);
-  if (!debate) {
-    return new Response("Not found", { status: 404 });
+  const url = new URL(req.url);
+  const topic = url.searchParams.get("topic");
+  const personaAId = url.searchParams.get("persona_a");
+  const personaBId = url.searchParams.get("persona_b");
+  const rounds = parseInt(url.searchParams.get("rounds") || "3", 10);
+
+  if (!topic || !personaAId || !personaBId) {
+    return new Response("Missing required query params: topic, persona_a, persona_b", { status: 400 });
   }
 
-  debate.status = "streaming";
-  const personaA = getPersona(debate.personaA.id)!;
-  const personaB = getPersona(debate.personaB.id)!;
+  const personaA = getPersona(personaAId);
+  const personaB = getPersona(personaBId);
+
+  if (!personaA || !personaB) {
+    return new Response("Invalid persona id", { status: 400 });
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
       const history: { role: "a" | "b"; content: string }[] = [];
 
       try {
-        for (let round = 1; round <= debate.rounds; round++) {
+        for (let round = 1; round <= rounds; round++) {
           const isFirst = round === 1;
           const isLast = round === debate.rounds;
           const phases = isFirst
@@ -42,7 +49,7 @@ export async function GET(
             const aText = await streamPersona(
               controller,
               personaA,
-              debate.topic,
+              topic,
               history,
               "a",
               round,
@@ -54,7 +61,7 @@ export async function GET(
             const bText = await streamPersona(
               controller,
               personaB,
-              debate.topic,
+              topic,
               history,
               "b",
               round,
@@ -72,7 +79,7 @@ export async function GET(
           new TextEncoder().encode(
             encode("debate_end", {
               debate_id: id,
-              rounds_completed: debate.rounds,
+              rounds_completed: rounds,
             })
           )
         );
@@ -84,7 +91,6 @@ export async function GET(
           )
         );
       } finally {
-        debate.status = "done";
         controller.close();
       }
     },

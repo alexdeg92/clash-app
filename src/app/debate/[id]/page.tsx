@@ -40,15 +40,22 @@ export default function DebatePage({
   useEffect(() => {
     // Fetch debate info then start stream
     const debateStore = sessionStorage.getItem(`debate-${id}`);
+    let d: { topic: string; personas: { a: PersonaInfo; b: PersonaInfo }; rounds: number } | null = null;
     if (debateStore) {
-      const d = JSON.parse(debateStore);
-      setPersonaA(d.personas.a);
-      setPersonaB(d.personas.b);
-      setTopic(d.topic);
-      setTotalRounds(d.rounds);
+      d = JSON.parse(debateStore);
+      setPersonaA(d!.personas.a);
+      setPersonaB(d!.personas.b);
+      setTopic(d!.topic);
+      setTotalRounds(d!.rounds);
     }
 
-    const es = new EventSource(`/api/debate/${id}/stream`);
+    const streamParams = new URLSearchParams({
+      topic: d?.topic || "",
+      persona_a: d?.personas?.a?.id || "",
+      persona_b: d?.personas?.b?.id || "",
+      rounds: String(d?.rounds || 3),
+    });
+    const es = new EventSource(`/api/debate/${id}/stream?${streamParams}`);
     setStarted(true);
 
     es.addEventListener("message", (e) => {
